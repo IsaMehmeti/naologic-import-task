@@ -1,11 +1,35 @@
 import { Injectable } from "@nestjs/common";
 import { resolve } from "path";
 import { ItemManagement } from "../interfaces/item.interface";
-
+import { validateData } from "../../utils/validation";
+import Joi from "joi";
+import { ImportService } from "../interfaces/import.service";
 @Injectable()
-export class ItemImportService {
-    async validateData(data: any[]): Promise<any[]> {
-        return Promise.all(resolve());
+export class ItemImportService implements ImportService {
+    private imageSchema = Joi.object({
+        name: Joi.string().required(),
+        type: Joi.string().required().default('inventory/non-inventory'),
+        shortDescription: Joi.string().optional().allow(''),
+        description: Joi.string().optional().allow(''),
+        vendorId: Joi.string().optional().allow(''), // Reference to a Vendor
+        manufacturerId: Joi.string().optional().allow(''), // Reference to a Vendor
+        price: Joi.number().required(),
+        currency: Joi.string().required(),
+        availability: Joi.string().optional().allow('').default('available'),
+        published: Joi.string().required().default('published'),
+        isTaxable: Joi.boolean().required(),
+        images: Joi.array().items(Joi.object({
+            url: Joi.string().required(),
+            name: Joi.string().required(),
+        })
+        ).optional().allow(''),
+        categoryId: Joi.string().optional().allow(''),
+        packagingIds: Joi.array().items(Joi.string()).required(),
+        unitOfMeasureId: Joi.string().required(),
+    });
+
+    async validateData(data: any[]): Promise<{ data: ItemManagement.Item[], errors: any[] }> {
+        return await validateData(data, this.imageSchema);
     }
 
     mapData(data: any[]): ItemManagement.Item[] {
@@ -62,5 +86,9 @@ export class ItemImportService {
         }
 
         return packagingIds;
+    }
+
+    async transformData(data: any[]): Promise<any[]> {
+        return Promise.all(resolve());
     }
 }

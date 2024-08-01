@@ -1,4 +1,4 @@
-import { Body, Controller, FileTypeValidator, MaxFileSizeValidator, ParseFilePipe, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, MaxFileSizeValidator, ParseFilePipe, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { ImportsService } from './imports.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Multer } from 'multer';
@@ -21,16 +21,15 @@ export class ImportsController {
 
     @Post('')
     @UseInterceptors(FileInterceptor('file'))
-    async import(
-        @UploadedFile(new ParseFilePipe({
+    async import(@UploadedFile(
+        new ParseFilePipe({
             validators: [
                 new MaxFileSizeValidator({ maxSize: 50 * 1024 * 1024 }), // <-- 50MB for now
             ],
-        }),
-        ) file: Express.Multer.File,
+        })) file: Express.Multer.File,
         @Body('type', ImportTypeValidationPipe) type: ImportType,
     ) {
-        // <-- check file excel or csv file type
+        // <-- handle parsing csv or excel files
         const fileType = this.importsService.getFileType(file.originalname)
         let result: any[];
         if (fileType === 'csv') {
@@ -41,12 +40,14 @@ export class ImportsController {
 
         // <-- get import service type based on type body param
         const typeImportService = this[`${type}ImportService`];
-
         const mappedData = typeImportService.mapData(result);
+        const validatedResult = await typeImportService.validateData(mappedData);
 
-        return mappedData;
+        return validatedResult;
+
+
         // const transformedDta = typeImportService.transFormData(mappedData);
 
-        // await this.s3Service.uploadObject(file.buffer, file.originalname, 'naologic-task-isa');
+        await this.s3Service.uploadObject(file.buffer, file.originalname, 'naologic-task-isa');
     }
 }

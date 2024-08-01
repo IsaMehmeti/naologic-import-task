@@ -2,12 +2,33 @@ import { Injectable } from "@nestjs/common";
 import { ImportService } from "../interfaces/import.service";
 import { resolve } from "path";
 import { Account } from "../interfaces/account.interface";
+import Joi from "joi";
+import { validateData } from "../../utils/validation"
 
 @Injectable()
 export class AccountImportService implements ImportService {
+    private accountSchema = Joi.object({
+        name: Joi.string().required(),
+        type: Joi.string().allow(''),
+        phoneNumber: Joi.string().allow(''),
+        website: Joi.string().uri().allow(''),
+        notes: Joi.string().allow(''),
+        email: Joi.string().email().required(),
+        parentAccountId: Joi.string().allow(''),
+        addresses: Joi.array().items(Joi.object({
+            id: Joi.string().required(),
+            city: Joi.string().required(),
+            country: Joi.string().required(),
+            line1: Joi.string().required(),
+            line2: Joi.string().optional().allow(''),
+            state: Joi.string().optional().allow(''),
+            type: Joi.string().optional().allow(''),
+            zip: Joi.string().required()
+        }))
+    });
 
-    async validateData(data: any[]): Promise<any[]> {
-        return Promise.all(resolve());
+    async validateData(data: any[]): Promise<{ data: Account.Account[], errors: any[] }> {
+        return await validateData(data, this.accountSchema);
     }
 
     mapData(data: any[]): Account.Account[] {
@@ -41,7 +62,7 @@ export class AccountImportService implements ImportService {
                 line2: data[`address.${index}.line2`],
                 state: data[`address.${index}.state`],
                 type: data[`address.${index}.type`],
-                zip: data[`address.${index}.zip`] || '',
+                zip: data[`address.${index}.zip`],
             });
             index++;
         }

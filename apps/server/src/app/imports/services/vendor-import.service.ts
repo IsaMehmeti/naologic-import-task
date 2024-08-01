@@ -1,11 +1,33 @@
 import { Injectable } from "@nestjs/common";
-import { resolve } from "path";
 import { Vendor } from "../interfaces/vendor.interface";
+import Joi from "joi";
+import { validateData } from "../../utils/validation";
+import { ImportService } from "../interfaces/import.service";
+import { resolve } from "path";
 
 @Injectable()
-export class VendorImportService {
-    async validateData(data: any[]): Promise<any[]> {
-        return Promise.all(resolve());
+export class VendorImportService implements ImportService {
+    private vendorSchema = Joi.object({
+        name: Joi.string().required(),
+        id: Joi.string().required(),
+        phoneNumber: Joi.string().required(),
+        contactName: Joi.string().optional().allow(''),
+        email: Joi.string().email().required(),
+        addresses: Joi.array().items(Joi.object({
+            id: Joi.string().required(),
+            city: Joi.string().required(),
+            country: Joi.string().required(),
+            line1: Joi.string().required(),
+            line2: Joi.string().optional().allow(''),
+            state: Joi.string().optional().allow(''),
+            type: Joi.string().optional().allow(''),
+            zip: Joi.string().required()
+        })),
+        createdDate: Joi.date().required(),
+    });
+
+    async validateData(data: any[]): Promise<{ data: Vendor.Vendor[], errors: any[] }> {
+        return await validateData(data, this.vendorSchema);
     }
 
     mapData(data: any[]): Vendor.Vendor[] {
@@ -38,12 +60,16 @@ export class VendorImportService {
                 line2: data[`address.${index}.line2`],
                 state: data[`address.${index}.state`],
                 type: data[`address.${index}.type`],
-                zip: data[`address.${index}.zip`] || '',
+                zip: data[`address.${index}.zip`],
             });
             index++;
         }
 
         return addresses;
+    }
+
+    async transformData(data: any[]): Promise<any[]> {
+        return Promise.all(resolve());
     }
 
 }
