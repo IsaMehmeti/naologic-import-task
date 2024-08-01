@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AwsModule } from './aws/aws.module';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ImportsModule } from './imports/imports.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { MongooseModule } from '@nestjs/mongoose';
     }),
     ConfigModule.forRoot({ isGlobal: true }),
     AwsModule,
+    ImportsModule
   ],
   controllers: [AppController],
   providers: [AppService],
