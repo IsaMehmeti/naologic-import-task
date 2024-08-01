@@ -1,30 +1,27 @@
 import { Injectable } from "@nestjs/common";
-import { ImportService } from "../interfaces/import.service";
 import { resolve } from "path";
-import { Account } from "../interfaces/account.interface";
+import { Vendor } from "../interfaces/vendor.interface";
 
 @Injectable()
-export class AccountImportService implements ImportService {
-
+export class VendorImportService {
     async validateData(data: any[]): Promise<any[]> {
         return Promise.all(resolve());
     }
 
-    mapData(data: any[]): Account.Account[] {
+    mapData(data: any[]): Vendor.Vendor[] {
         return data.map(item => ({
             name: item.name,
-            type: item.type,
+            id: item.id,
             phoneNumber: item.phoneNumber,
-            website: item.website,
-            notes: item.notes,
-            addresses: this.mapAddresses(item),
+            contactName: item.contactName,
             email: item.email,
-            parentAccountId: item.parentAccountId,
+            addresses: this.mapAddresses(item),
+            createdDate: item.createdDate
         }));
     }
 
-    private mapAddresses(data: any): Account.Address[] {
-        const addresses: Account.Address[] = [];
+    private mapAddresses(data: any): Vendor.Address[] {
+        const addresses: Vendor.Address[] = [];
         let index = 0;
 
         while (data.hasOwnProperty(`address.${index}.id`) || data.hasOwnProperty(`image.${index}.city`)) {
@@ -49,7 +46,4 @@ export class AccountImportService implements ImportService {
         return addresses;
     }
 
-    async transformData(data: any[]): Promise<any[]> {
-        return Promise.all(resolve());
-    }
 }

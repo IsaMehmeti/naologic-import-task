@@ -6,6 +6,8 @@ import { S3Service } from '../aws/s3.service';
 import { ImportTypeValidationPipe } from './validation/import-type.validation.pipe';
 import { ImportType } from './enums/import-type.enum';
 import { AccountImportService } from './services/account-import.service';
+import { ItemImportService } from './services/item-import.service';
+import { VendorImportService } from './services/vendor-import.service';
 
 @Controller('imports')
 export class ImportsController {
@@ -13,6 +15,8 @@ export class ImportsController {
         private readonly importsService: ImportsService,
         private readonly s3Service: S3Service,
         private readonly accountImportService: AccountImportService,
+        private readonly itemImportService: ItemImportService,
+        private readonly vendorImportService: VendorImportService,
     ) { }
 
     @Post('')
@@ -40,7 +44,7 @@ export class ImportsController {
 
         const mappedData = typeImportService.mapData(result);
 
-        return mappedData[0];
+        return mappedData;
         // const transformedDta = typeImportService.transFormData(mappedData);
 
         // await this.s3Service.uploadObject(file.buffer, file.originalname, 'naologic-task-isa');
