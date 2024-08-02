@@ -1,12 +1,18 @@
 import { Injectable } from "@nestjs/common";
-import { Vendor } from "../interfaces/vendor.interface";
+import { Vendor } from "../interfaces/vendor";
 import Joi from "joi";
-import { validateData } from "../../utils/validation";
-import { ImportService } from "../interfaces/import.service";
-import { resolve } from "path";
+import { validateData } from "../../shared/utils/validation";
+import { ImportManager } from "../interfaces/import-manager";
+import { mapNestedArray } from "../../shared/utils/mapping";
+import { batchSave } from "../../shared/utils/batch-save";
+import { Model } from "mongoose";
+import { InjectModel } from "@nestjs/mongoose";
+import { capitalizeFirstLetter, convertCountryToISO3, convertStringToDate, createFullAddress, formatPhoneNumber, standardizeAddressType } from "../../shared/utils/transformations";
 
 @Injectable()
-export class VendorImportService implements ImportService {
+export class VendorImportService implements ImportManager {
+    constructor(@InjectModel('Vendor') private readonly vendorModel: Model<Vendor.Vendor>) { }
+
     private vendorSchema = Joi.object({
         name: Joi.string().required(),
         id: Joi.string().required(),
@@ -37,39 +43,32 @@ export class VendorImportService implements ImportService {
             phoneNumber: item.phoneNumber,
             contactName: item.contactName,
             email: item.email,
-            addresses: this.mapAddresses(item),
+            addresses: mapNestedArray<Vendor.Address>(item, 'address', [
+                'id', 'city', 'country', 'line1', 'line2', 'state', 'type', 'zip'
+            ]),
             createdDate: item.createdDate
         }));
     }
 
-    private mapAddresses(data: any): Vendor.Address[] {
-        const addresses: Vendor.Address[] = [];
-        let index = 0;
 
-        while (data.hasOwnProperty(`address.${index}.id`) || data.hasOwnProperty(`image.${index}.city`)) {
-            const id = data[`address.${index}.id`];
-            const city = data[`address.${index}.city`];
-
-            if (!id && !city) break;
-
-            addresses.push({
-                id: id,
-                city: data[`address.${index}.city`] || '',
-                country: data[`address.${index}.country`],
-                line1: data[`address.${index}.line1`],
-                line2: data[`address.${index}.line2`],
-                state: data[`address.${index}.state`],
-                type: data[`address.${index}.type`],
-                zip: data[`address.${index}.zip`],
-            });
-            index++;
-        }
-
-        return addresses;
+    async transformData(data: any[]): Promise<Vendor.Vendor[]> {
+        return data.map(vendor => ({
+            ...vendor,
+            name: capitalizeFirstLetter(vendor.name),
+            phoneNumber: formatPhoneNumber(vendor.phoneNumber),
+            email: vendor.email.toLowerCase(),
+            addresses: vendor.addresses.map((address: Vendor.Address) => ({
+                ...address,
+                country: convertCountryToISO3(address.country),
+                type: standardizeAddressType(address.type),
+                // New merged field for address
+                fullAddress: createFullAddress(address)
+            })),
+            createdDate: convertStringToDate(vendor.createdDate),
+        }));
     }
 
-    async transformData(data: any[]): Promise<any[]> {
-        return Promise.all(resolve());
+    async saveData(data: any[]): Promise<Vendor.Vendor[]> {
+        return await batchSave(this.vendorModel, data);
     }
-
 }

@@ -1,14 +1,20 @@
 import { Injectable } from "@nestjs/common";
-import { resolve } from "path";
-import { ItemManagement } from "../interfaces/item.interface";
-import { validateData } from "../../utils/validation";
+import { ItemManagement } from "../interfaces/item";
+import { validateData } from "../../shared/utils/validation";
 import Joi from "joi";
-import { ImportService } from "../interfaces/import.service";
+import { ImportManager } from "../interfaces/import-manager";
+import { mapFlattenedArray, mapNestedArray } from "../../shared/utils/mapping";
+import { batchSave } from "../../shared/utils/batch-save";
+import { Model } from "mongoose";
+import { InjectModel } from "@nestjs/mongoose";
+import { capitalizeFirstLetter, removeDuplicates, roundToTwoDecimals, standardizeType } from "../../shared/utils/transformations";
 @Injectable()
-export class ItemImportService implements ImportService {
+export class ItemImportService implements ImportManager {
+    constructor(@InjectModel('Item') private readonly itemModel: Model<ItemManagement.Item>) { }
+
     private imageSchema = Joi.object({
         name: Joi.string().required(),
-        type: Joi.string().required().default('inventory/non-inventory'),
+        type: Joi.string().required().default('inventory'),
         shortDescription: Joi.string().optional().allow(''),
         description: Joi.string().optional().allow(''),
         vendorId: Joi.string().optional().allow(''), // Reference to a Vendor
@@ -45,50 +51,34 @@ export class ItemImportService implements ImportService {
             availability: item.availability,
             published: item.published,
             isTaxable: item.isTaxable,
-            images: this.mapImages(item),
+            images: mapNestedArray<ItemManagement.Image>(item, 'image', ['name', 'url']),
             categoryId: item.categoryId,
-            packagingIds: this.mapPackagingIds(item),
+            packagingIds: mapFlattenedArray<string>(item, 'packagingId'),
             unitOfMeasureId: item.unitOfMeasureId,
         }));
     }
 
-    private mapImages(data: any): ItemManagement.Image[] {
-        const images: ItemManagement.Image[] = [];
-        let index = 0;
-
-        while (data.hasOwnProperty(`image.${index}.url`) || data.hasOwnProperty(`image.${index}.name`)) {
-            const url = data[`image.${index}.url`];
-            const name = data[`image.${index}.name`];
-
-            if (!url && !name) break;
-
-            images.push({
-                url,
-                name
-            });
-            index++;
-        }
-
-        return images;
+    async transformData(data: any[]): Promise<ItemManagement.Item[]> {
+        return data.map(item => ({
+            ...item,
+            name: capitalizeFirstLetter(item.name),
+            type: standardizeType(item.type),
+            shortDescription: item.shortDescription?.trim(),
+            description: item.description?.trim(),
+            price: roundToTwoDecimals(item.price),
+            currency: item.currency.toUpperCase(),
+            availability: item.availability?.toLowerCase() === 'unavailable' ? 'unavailable' : 'available',
+            published: item.published?.toLowerCase() === 'unpublished' ? 'unpublished' : 'published',
+            isTaxable: !!item.isTaxable,
+            images: item.images,
+            packagingIds: removeDuplicates(item.packagingIds),
+            // New merged field
+            fullDescription: `${item.name} - ${item.shortDescription}. Detailed information: ${item.description}`
+        }));
     }
 
-    private mapPackagingIds(data: any): string[] {
-        const packagingIds: string[] = [];
-        let index = 0;
-
-        while (data.hasOwnProperty(`packagingId.${index}`)) {
-            const packagingId = data[`packagingId.${index}`];
-
-            if (packagingId !== null) {
-                packagingIds.push(packagingId);
-            }
-            index++;
-        }
-
-        return packagingIds;
+    async saveData(data: any[]): Promise<ItemManagement.Item[]> {
+        return await batchSave(this.itemModel, data);
     }
 
-    async transformData(data: any[]): Promise<any[]> {
-        return Promise.all(resolve());
-    }
 }

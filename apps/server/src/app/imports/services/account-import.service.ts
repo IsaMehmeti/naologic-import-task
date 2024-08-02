@@ -1,12 +1,18 @@
 import { Injectable } from "@nestjs/common";
-import { ImportService } from "../interfaces/import.service";
-import { resolve } from "path";
-import { Account } from "../interfaces/account.interface";
+import { ImportManager } from "../interfaces/import-manager";
+import { Account } from "../interfaces/account";
 import Joi from "joi";
-import { validateData } from "../../utils/validation"
+import { validateData } from "../../shared/utils/validation"
+import { batchSave } from "../../shared/utils/batch-save";
+import { Model } from "mongoose";
+import { InjectModel } from "@nestjs/mongoose";
+import { formatPhoneNumber, convertCountryToISO3, createFullAddress } from "../../shared/utils/transformations";
+import { mapNestedArray } from "../../shared/utils/mapping";
 
 @Injectable()
-export class AccountImportService implements ImportService {
+export class AccountImportService implements ImportManager {
+    constructor(@InjectModel('Account') private readonly accountModel: Model<Account.Account>) { }
+
     private accountSchema = Joi.object({
         name: Joi.string().required(),
         type: Joi.string().allow(''),
@@ -28,7 +34,7 @@ export class AccountImportService implements ImportService {
     });
 
     async validateData(data: any[]): Promise<{ data: Account.Account[], errors: any[] }> {
-        return await validateData(data, this.accountSchema);
+        return await validateData<Account.Account>(data, this.accountSchema);
     }
 
     mapData(data: any[]): Account.Account[] {
@@ -38,39 +44,27 @@ export class AccountImportService implements ImportService {
             phoneNumber: item.phoneNumber,
             website: item.website,
             notes: item.notes,
-            addresses: this.mapAddresses(item),
+            addresses: mapNestedArray<Account.Address>(item, 'address', [
+                'id', 'city', 'country', 'line1', 'line2', 'state', 'type', 'zip'
+            ]),
             email: item.email,
             parentAccountId: item.parentAccountId,
         }));
     }
 
-    private mapAddresses(data: any): Account.Address[] {
-        const addresses: Account.Address[] = [];
-        let index = 0;
-
-        while (data.hasOwnProperty(`address.${index}.id`) || data.hasOwnProperty(`image.${index}.city`)) {
-            const id = data[`address.${index}.id`];
-            const city = data[`address.${index}.city`];
-
-            if (!id && !city) break;
-
-            addresses.push({
-                id: id,
-                city: data[`address.${index}.city`] || '',
-                country: data[`address.${index}.country`],
-                line1: data[`address.${index}.line1`],
-                line2: data[`address.${index}.line2`],
-                state: data[`address.${index}.state`],
-                type: data[`address.${index}.type`],
-                zip: data[`address.${index}.zip`],
-            });
-            index++;
-        }
-
-        return addresses;
+    async transformData(data: any[]): Promise<Account.Account[]> {
+        return data.map(account => ({
+            ...account,
+            phoneNumber: formatPhoneNumber(account.phoneNumber),
+            addresses: account.addresses?.map(address => ({
+                ...address,
+                country: convertCountryToISO3(address.country),
+                fullAddress: createFullAddress(address)
+            }))
+        }));
     }
 
-    async transformData(data: any[]): Promise<any[]> {
-        return Promise.all(resolve());
+    async saveData(data: any[]): Promise<Account.Account[]> {
+        return await batchSave(this.accountModel, data);
     }
 }
