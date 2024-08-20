@@ -3,8 +3,10 @@ import * as Papa from 'papaparse';
 import * as stream from 'stream';
 import * as XLSX from 'xlsx';
 import * as path from 'path';
+
 @Injectable()
 export class ImportsService {
+
     async parseCSV(file: Buffer): Promise<Papa.ParseResult<any>> {
         return new Promise((resolve, reject) => {
             const bufferStream = new stream.PassThrough();
@@ -40,4 +42,5 @@ export class ImportsService {
                 throw new UnsupportedMediaTypeException('Unsupported file type');
         }
     }
+
 }
